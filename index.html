@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
+    <title>BashaDrive Pro</title>
+    
+    <!-- Configuración App Instalable -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3448/3448339.png">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,700,0,0" rel="stylesheet" />
+
+    <style>
+        [x-cloak] { display: none !important; }
+        body { 
+            background-color: #000000; 
+            color: #ffffff; 
+            font-family: system-ui, -apple-system, sans-serif;
+            padding-top: env(safe-area-inset-top);
+        }
+
+        .bloque-trabajo {
+            background: #111827;
+            border-radius: 2.5rem;
+            border-left: 16px solid;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .border-expres { border-left-color: #0ea5e9; }
+        .border-escolar { border-left-color: #10b981; }
+        .border-tarde { border-left-color: #f59e0b; }
+        .border-libre { border-left-color: #475569; opacity: 0.6; }
+
+        .bus-badge-pro {
+            background: #f97316;
+            color: #000000;
+            padding: 10px 24px;
+            border-radius: 1.2rem;
+            font-weight: 900;
+            font-size: 2.8rem;
+            line-height: 1;
+            display: inline-block;
+            box-shadow: 0 4px 0 #c2410c;
+        }
+
+        .texto-servicio {
+            font-size: 2rem;
+            font-weight: 800;
+            line-height: 1.1;
+            margin-top: 1.5rem;
+            color: #f8fafc;
+        }
+
+        .info-fecha {
+            font-size: 1.2rem;
+            font-weight: 900;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body x-data="bashaApp()" x-init="init()">
+
+    <header class="p-6 sticky top-0 bg-black/90 backdrop-blur-md z-50 flex justify-between items-center border-b border-white/10">
+        <div>
+            <h1 class="text-2xl font-black text-orange-500 italic">BASHADRIVE <span class="text-white">PRO</span></h1>
+            <p class="text-[10px] font-bold text-sky-400 tracking-widest uppercase">Cód. 86 • Menorca</p>
+        </div>
+        <div class="flex gap-4">
+            <!-- Botón Borrar -->
+            <button @click="limpiarTodo()" class="text-red-500 active:scale-90 transition">
+                <span class="material-symbols-outlined text-4xl">delete_forever</span>
+            </button>
+            <!-- Botón Añadir -->
+            <button @click="ui.showImport = true" class="bg-orange-600 w-16 h-16 rounded-full flex items-center justify-center shadow-2xl active:scale-90 transition">
+                <span class="material-symbols-outlined text-4xl text-white">post_add</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="p-4 pb-32 overflow-y-auto hide-scrollbar">
+        <template x-if="planning.length === 0">
+            <div class="text-center py-20 opacity-20">
+                <span class="material-symbols-outlined text-7xl">description</span>
+                <p class="font-black uppercase mt-4">Pega el nuevo cuadrante</p>
+            </div>
+        </template>
+
+        <template x-for="(dia, index) in planning" :key="index">
+            <div class="bloque-trabajo" :class="getEstilo(dia.servicio)">
+                <div class="flex justify-between items-start">
+                    <div class="dia-info">
+                        <p class="info-fecha" x-text="dia.diaSemana"></p>
+                        <p class="text-white font-bold text-lg" x-text="dia.fecha"></p>
+                    </div>
+                    <div class="flex flex-col gap-3">
+                        <template x-for="bus in dia.buses">
+                            <span class="bus-badge-pro" x-text="bus"></span>
+                        </template>
+                    </div>
+                </div>
+                
+                <h2 class="texto-servicio" x-text="dia.servicio"></h2>
+            </div>
+        </template>
+    </main>
+
+    <!-- Modal Importar -->
+    <div x-show="ui.showImport" x-cloak class="fixed inset-0 bg-black/98 z-[100] p-6 flex flex-col">
+        <div class="flex justify-between items-center mb-8 pt-6">
+            <h2 class="text-2xl font-black text-orange-500 uppercase">Nuevo Cuadrante</h2>
+            <button @click="ui.showImport = false" class="text-white">
+                <span class="material-symbols-outlined text-4xl">close</span>
+            </button>
+        </div>
+        <textarea x-model="inputRaw" 
+                  class="flex-grow bg-white/5 border border-white/20 rounded-[2.5rem] p-6 outline-none text-lg font-mono text-sky-400" 
+                  placeholder="Pega el texto del mail aquí..."></textarea>
+        
+        <button @click="procesarCuadrante()" 
+                class="mt-8 bg-orange-600 text-white py-8 rounded-[2.5rem] font-black text-xl uppercase shadow-2xl active:scale-95 transition-all">
+            CARGAR SEMANA
+        </button>
+    </div>
+
+    <script>
+        function bashaApp() {
+            return {
+                ui: { showImport: false },
+                inputRaw: '',
+                planning: [],
+
+                init() {
+                    const saved = localStorage.getItem('basha_plan_v3');
+                    if (saved) this.planning = JSON.parse(saved);
+                },
+
+                getEstilo(serv) {
+                    const s = serv.toUpperCase();
+                    if (s.includes('EXPRES')) return 'border-expres';
+                    if (s.includes('ESC.') || s.includes('FER-')) return 'border-escolar';
+                    if (s.includes('REFU') || s.includes('TARDE')) return 'border-tarde';
+                    if (s.includes('LIBRE')) return 'border-libre';
+                    return 'border-gray-600';
+                },
+
+                procesarCuadrante() {
+                    if (!this.inputRaw.trim()) return;
+
+                    const lineas = this.inputRaw.split('\n');
+                    const nuevaSemana = [];
+
+                    lineas.forEach(linea => {
+                        if (linea.trim().length < 5) return;
+
+                        // 1. Extraer Buses (Números de 2 o 3 cifras)
+                        const busesEncontrados = linea.match(/\b\d{2,3}\b/g) || [];
+                        
+                        // 2. Extraer Fecha (formato 00-00)
+                        const fechaMatch = linea.match(/\d{2}-\d{2}/);
+                        const fecha = fechaMatch ? fechaMatch[0] : '';
+
+                        // 3. Limpiar texto del servicio (quitar fecha y números de bus)
+                        let servicio = linea
+                            .replace(/\d{2}-\d{2}/g, '') // Quita fecha
+                            .replace(/\b\d{2,3}\b/g, '') // Quita buses
+                            .replace(/(Lunes|Martes|Miércoles|Jueves|Viernes|Sábado|Domingo)/gi, '') // Quita días
+                            .trim();
+
+                        nuevaSemana.push({
+                            fecha: fecha,
+                            diaSemana: this.detectarDia(linea),
+                            servicio: servicio || 'Servicio Especial',
+                            buses: servicio.toUpperCase().includes('LIBRE') ? [] : busesEncontrados
+                        });
+                    });
+
+                    this.planning = nuevaSemana;
+                    localStorage.setItem('basha_plan_v3', JSON.stringify(this.planning));
+                    this.ui.showImport = false;
+                    this.inputRaw = '';
+                },
+
+                detectarDia(txt) {
+                    const dias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+                    return dias.find(d => txt.toUpperCase().includes(d.toUpperCase())) || 'Día';
+                },
+
+                limpiarTodo() {
+                    if(confirm('¿Borrar cuadrante para pegar uno nuevo?')) {
+                        this.planning = [];
+                        localStorage.removeItem('basha_plan_v3');
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>
